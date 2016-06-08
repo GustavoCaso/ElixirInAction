@@ -8,23 +8,27 @@ defmodule Todo.Cache do
   end
 
   def server_process(todo_list_name) do
-    GenServer.call(:todo_cache, {:server_process, todo_list_name})
+    case Todo.Server.whereis(todo_list_name) do
+      pid -> pid
+      :undefined ->
+        GenServer.call(:todo_cache, {:server_process, todo_list_name})
+    end
   end
 
 
   # Server
 
   def init(_) do
-    {:ok, Map.new}
+    {:ok, _}
   end
 
-  def handle_call({:server_process, todo_list_name}, _from, todo_servers) do
-    case Map.fetch(todo_servers, todo_list_name) do
-      {:ok, todo_server} ->
-        {:reply, todo_server, todo_servers}
-      :error ->
-        {:ok, new_server} = Todo.Server.start_link(todo_list_name)
-        {:reply, new_server, Map.put(todo_servers, todo_list_name, new_server)}
+  def handle_call({:server_process, todo_list_name}, _from, state) do
+    case Todo.Server.whereis(todo_list_name) do
+      pid ->
+        {:reply, pid, state}
+      :undefined ->
+        {:ok, pid} = Todo.ServerSupervisor.start_child(todo_list_name)
+        {:reply, pid, state}
     end
   end
 end
